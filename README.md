@@ -1,6 +1,6 @@
 # Website Voice Agent
 
-Turn any website into a voice assistant you can **talk to**. Enter an address, the agent reads the site, and visitors can ask questions out loud and get spoken answers, only from what is on the site.
+A **voice info desk for your website**. Enter an address, the agent reads the site, and visitors ask questions out loud and get spoken answers, only from what is on the site.
 
 Built on Google's new real-time voice model **Gemini 3.8 Live** ([announcement](https://blog.google/innovation-and-ai/technology/developers-tools/build-real-time-voice-applications-gemini-audio/)). Built with Claude Code.
 
