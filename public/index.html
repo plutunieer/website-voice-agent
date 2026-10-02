@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Website Voice Agent</title>
+<style>
+  :root { --bg:#f4f2ed; --card:#fff; --ink:#1b1f24; --muted:#636a72; --line:#ddd8cd; --acc:#1f5fd1; --acc-bg:#e7efff; --ok:#1f7a4d; --err:#b3352a; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font-family:-apple-system,"Segoe UI",Helvetica,sans-serif; line-height:1.45; }
+  .page { max-width:760px; margin:0 auto; padding:48px 20px 80px; }
+  .kick { font-size:13px; letter-spacing:2px; font-weight:700; color:var(--acc); text-transform:uppercase; }
+  h1 { font-size:40px; letter-spacing:-1px; margin-top:8px; }
+  .lead { font-size:18px; color:var(--muted); margin-top:8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:22px; margin-top:26px; }
+  label { font-size:14px; font-weight:600; display:block; margin-bottom:6px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  input { flex:1; min-width:220px; font-size:17px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+  button { font-size:16px; font-weight:650; padding:12px 18px; border-radius:10px; border:1px solid var(--acc); background:var(--acc-bg); color:var(--acc); cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .msg { margin-top:12px; font-size:15px; color:var(--muted); }
+  .msg.err { color:var(--err); }
+  .pages { font-size:14px; color:var(--muted); margin-top:10px; }
+  .talk { display:none; text-align:center; }
+  .mic { width:132px; height:132px; border-radius:50%; border:3px solid var(--acc); background:var(--acc-bg); color:var(--acc); font-size:15px; font-weight:700; margin:12px auto 0; display:flex; align-items:center; justify-content:center; transition:transform .08s; }
+  .mic.live { border-color:var(--ok); background:#e3f3ea; color:var(--ok); }
+  .state { margin-top:14px; font-size:16px; color:var(--muted); min-height:24px; }
+  .log { text-align:left; margin-top:18px; max-height:300px; overflow:auto; font-size:15px; }
+  .log p { padding:8px 12px; border-radius:10px; margin-top:8px; }
+  .log .you { background:#f1efe9; }
+  .log .agent { background:var(--acc-bg); }
+  .log b { font-size:12px; letter-spacing:1px; color:var(--muted); display:block; }
+  pre { background:#f1efe9; border:1px solid var(--line); border-radius:10px; padding:12px; font-size:13px; white-space:pre-wrap; word-break:break-all; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kick">Website Voice Agent</div>
+  <h1>Talk to any website.</h1>
+  <p class="lead">Enter a web address. The agent reads the site and answers visitors by voice, only from what is on it.</p>
+
+  <div class="card" id="build">
+    <label for="url">Website address</label>
+    <div class="row"><input id="url" placeholder="example.com" autocomplete="off"><button id="go">Create voice agent</button></div>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div class="card talk" id="talk">
+    <h2 id="agentName" style="font-size:22px"></h2>
+    <div class="pages" id="pages"></div>
+    <button class="mic" id="mic">Tap to talk</button>
+    <div class="state" id="state"></div>
+    <div class="log" id="log"></div>
+    <div style="text-align:left;margin-top:22px">
+      <label>Add it to your website</label>
+      <pre id="snippet"></pre>
+    </div>
+  </div>
+</div>
+<script src="/talk.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let agent = null, call = null, last = null;
+const STATES = { connecting: 'Connecting …', listening: 'Listening. Just speak.', speaking: 'Speaking … (tap to stop)', ended: 'Conversation ended.', error: '' };
+
+async function create() {
+  const url = $('url').value.trim(); if (!url) return;
+  $('go').disabled = true; $('msg').className = 'msg'; $('msg').textContent = 'Reading the website … (10–30 seconds)';
+  try {
+    const res = await fetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const body = await res.json(); if (!res.ok) throw new Error(body.error);
+    show(body); history.replaceState(null, '', '?agent=' + body.id);
+  } catch (e) { $('msg').className = 'msg err'; $('msg').textContent = e.message; }
+  $('go').disabled = false;
+}
+function show(a) {
+  if (call) { call.stop(); call = null; }
+  $('log').innerHTML = ''; last = null; $('state').textContent = '';
+  agent = a; $('msg').textContent = '';
+  $('talk').style.display = 'block'; $('agentName').textContent = a.name;
+  $('pages').textContent = `Read ${a.pages.length} page${a.pages.length === 1 ? '' : 's'} from ${new URL(a.url).hostname}`;
+  $('snippet').textContent = `<script src="${location.origin}/widget.js" data-agent="${a.id}"><\/script>`;
+}
+function add(who, text) {
+  if (last && last.who === who) { last.el.lastChild.textContent += text; }
+  else { const p = document.createElement('p'); p.className = who; p.innerHTML = `<b>${who === 'you' ? 'YOU' : 'AGENT'}</b><span></span>`; p.lastChild.textContent = text; $('log').appendChild(p); last = { who, el: p }; }
+  $('log').scrollTop = 1e9;
+}
+$('go').onclick = create; $('url').onkeydown = (e) => { if (e.key === 'Enter') create(); };
+$('mic').onclick = async () => {
+  if (call) { call.stop(); call = null; return; }
+  try {
+    call = await WebsiteVoiceAgent.startTalk({
+      server: location.origin, agent: agent.id,
+      onState: (s) => { if (s !== 'error') $('state').textContent = STATES[s] || s; const live = s !== 'ended' && s !== 'error'; if (s === 'error') { call = null; } $('mic').classList.toggle('live', live); $('mic').textContent = live ? 'Tap to stop' : 'Tap to talk'; if (s === 'ended') call = null; },
+      onText: add,
+      onError: (m) => { $('state').textContent = m; },
+      onLevel: (v) => { $('mic').style.transform = `scale(${1 + v * 0.12})`; },
+    });
+  } catch (e) { $('state').textContent = e.name === 'NotAllowedError' ? 'Please allow the microphone.' : e.message; call = null; }
+};
+const id = new URLSearchParams(location.search).get('agent');
+if (id) fetch('/api/agents/' + id).then((r) => r.ok ? r.json() : null).then((a) => a && show(a));
+</script>
+</body>
+</html>
